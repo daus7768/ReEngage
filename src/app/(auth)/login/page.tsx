@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { signUpAccount } from "@/server/actions/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,13 +18,32 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setBusy(true);
-    const fn =
-      mode === "signin"
-        ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({ email, password });
-    const { error } = await fn;
+
+    if (mode === "signin") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      setBusy(false);
+      if (error) return setError(error.message);
+      router.push("/");
+      router.refresh();
+      return;
+    }
+
+    const result = await signUpAccount(email, password);
+    if ("error" in result) {
+      setBusy(false);
+      return setError(result.error);
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
     setBusy(false);
-    if (error) return setError(error.message);
+    if (signInError) return setError(signInError.message);
+
     router.push("/");
     router.refresh();
   }
@@ -72,7 +92,10 @@ export default function LoginPage() {
         </form>
 
         <button
-          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+          onClick={() => {
+            setMode(mode === "signin" ? "signup" : "signin");
+            setError(null);
+          }}
           className="mt-4 text-sm text-[var(--ink-soft)] underline underline-offset-4"
         >
           {mode === "signin"
